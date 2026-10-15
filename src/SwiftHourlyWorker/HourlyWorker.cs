@@ -22,10 +22,10 @@ public sealed class HourlyWorker(
         ValidateOptions();
 
         logger.LogInformation(
-            "Worker started. TestMode={TestMode}",
-            _options.TestModeEnabled);
+            "Worker started. TestMode={TestMode}, TestSendEmail={Send}",
+            _options.TestModeEnabled,
+            _options.TestSendEmail);
 
-        // Ejecucion inmediata opcional.
         if (_options.RunOnStartup)
             await TryRunAsync(stoppingToken);
 
@@ -56,7 +56,6 @@ public sealed class HourlyWorker(
         }
     }
 
-    // Modo normal: cada hora al minuto configurado.
     private DateTimeOffset GetNextNormalExecution(
         DateTimeOffset now)
     {
@@ -69,24 +68,18 @@ public sealed class HourlyWorker(
             0,
             TimeSpan.Zero);
 
-        if (next <= now)
-            next = next.AddHours(1);
-
-        return next;
+        return next <= now ? next.AddHours(1) : next;
     }
 
-    // Modo pruebas: hora y minuto configurados
-    // en la zona horaria seleccionada.
     private DateTimeOffset GetNextTestExecution(
         DateTimeOffset now)
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById(
             _options.TimeZoneId);
 
-        var localNow = TimeZoneInfo.ConvertTime(
-            now, zone);
+        var localNow = TimeZoneInfo.ConvertTime(now, zone);
 
-        var nextLocal = new DateTime(
+        var localNext = new DateTime(
             localNow.Year,
             localNow.Month,
             localNow.Day,
@@ -95,18 +88,18 @@ public sealed class HourlyWorker(
             0,
             DateTimeKind.Unspecified);
 
-        if (nextLocal <= localNow.DateTime)
-            nextLocal = nextLocal.AddDays(1);
+        if (localNext <= localNow.DateTime)
+            localNext = localNext.AddDays(1);
 
-        while (zone.IsInvalidTime(nextLocal))
-            nextLocal = nextLocal.AddMinutes(1);
+        while (zone.IsInvalidTime(localNext))
+            localNext = localNext.AddMinutes(1);
 
-        var offset = zone.IsAmbiguousTime(nextLocal)
-            ? zone.GetAmbiguousTimeOffsets(nextLocal).Max()
-            : zone.GetUtcOffset(nextLocal);
+        var offset = zone.IsAmbiguousTime(localNext)
+            ? zone.GetAmbiguousTimeOffsets(localNext).Max()
+            : zone.GetUtcOffset(localNext);
 
         return new DateTimeOffset(
-            nextLocal,
+            localNext,
             offset).ToUniversalTime();
     }
 
@@ -133,6 +126,26 @@ public sealed class HourlyWorker(
         {
             throw new InvalidOperationException(
                 "Invalid test execution hour or minute");
+        }
+
+        if (_options.TestModeEnabled &&
+            _options.TestSendEmail &&
+            (string.IsNullOrWhiteSpace(_options.TestEmailRecipient) ||
+             !string.Equals(
+                 _options.TestEmailRecipient.Trim(),
+                 "christianye@iadb.org",
+                 StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                "Invalid test email recipient");
+        }
+
+        if (_options.TestModeEnabled &&
+            _options.TestSendEmail &&
+            _options.DryRun)
+        {
+            throw new InvalidOperationException(
+                "Set DryRun=false to enable test email delivery");
         }
 
         _ = TimeZoneInfo.FindSystemTimeZoneById(
@@ -163,7 +176,6 @@ public sealed class HourlyWorker(
 
     private async Task RunAsync(CancellationToken ct)
     {
-        // Zona horaria en la que SQL almacena fechas.
         var zone = TimeZoneInfo.FindSystemTimeZoneById(
             _options.SqlTimeZoneId);
 
@@ -171,15 +183,12 @@ public sealed class HourlyWorker(
             DateTimeOffset.UtcNow,
             zone).DateTime;
 
-        // Ultima hora completa.
         var latest = HourWindow.PreviousCompleteHour(sqlNow);
 
         var stateFile = _options.TestModeEnabled
             ? _options.TestStateFile
             : _options.StateFile;
 
-        // Modo pruebas: ignorar checkpoint.
-        // Modo normal: recuperar checkpoint existente.
         DateTime? checkpoint = _options.TestModeEnabled
             ? null
             : await checkpoints.ReadAsync(stateFile, ct);
@@ -205,7 +214,7 @@ public sealed class HourlyWorker(
                 start.AddHours(1));
 
             logger.LogInformation(
-                "Querying SQL: {Start:o} - {End:o}",
+                "Querying SQL: {Start:o}-{End:o}",
                 window.Start,
                 window.End);
 
@@ -224,17 +233,39 @@ public sealed class HourlyWorker(
 
             if (_options.TestModeEnabled)
             {
-                // Nunca enviar correo en modo pruebas.
-                logger.LogInformation(
-                    "TEST MODE: {Start:o}-{End:o}, " +
-                    "{Total} registros. Sin envio.",
-                    window.Start,
-                    window.End,
-                    total);
+                if (_options.TestSendEmail)
+                {
+                    // Requiere adaptar OutlookDesktopMailSender
+                    // para aceptar un destinatario explicito.
+                    await RetryAsync(
+                        async () =>
+                        {
+                            await mail.SendTestAsync(
+                                report,
+                                _options,
+                                _options.TestEmailRecipient,
+                                ct);
+
+                            return true;
+                        },
+                        ct);
+
+                    logger.LogInformation(
+                        "TEST EMAIL sent to {Recipient}",
+                        _options.TestEmailRecipient);
+                }
+                else
+                {
+                    logger.LogInformation(
+                        "TEST MODE: {Start:o}-{End:o}, " +
+                        "{Total} registros. Sin envio.",
+                        window.Start,
+                        window.End,
+                        total);
+                }
             }
             else if (_options.SendEmptyReports || total > 0)
             {
-                // Mantener envio original en modo normal.
                 await RetryAsync(
                     async () =>
                     {
@@ -248,7 +279,6 @@ public sealed class HourlyWorker(
                     ct);
             }
 
-            // El modo pruebas NO modifica checkpoints.
             if (!_options.TestModeEnabled)
             {
                 await checkpoints.WriteAsync(
