@@ -52,4 +52,11 @@ dotnet run --project .\src\SwiftHourlyWorker\SwiftHourlyWorker.csproj
 
 Outlook COM es una solución **de escritorio**, no un servicio desatendido confiable: no operar en Windows Service Session 0, Linux, contenedores o Azure Container Apps. Nuevo Outlook no ofrece soporte COM. Si se requiere operación de servidor 24/7 sin sesión activa, conservar el conector **Office 365 Outlook de Power Automate** u obtener un método de envío autorizado por TI (por ejemplo SMTP relay corporativo).
 
-**No ejecutado**: compilación ni pruebas de integración reales; este entorno no tiene .NET SDK ni la sesión de Outlook.
+## Validación funcional (15/10/2026)
+
+- Compilación de `SwiftHourlyWorker` en .NET 10: correcta, 0 errores y 0 advertencias en MarketingIndo.
+- La ejecución de prueba consultó correctamente Azure SQL y obtuvo 6 registros de la ventana `2026-10-15 16:00–17:00` (zona configurada en SQL).
+- El reporte HTML se recibió en el buzón de pruebas, con los 6 registros, `DELIVERED=6` y `SUCCESS=6`.
+- La recepción se comprobó visualmente con la cuenta destinataria. El modo de pruebas no escribe el checkpoint de producción.
+- **Seguridad:** los `appsettings.json` reales y binarios se excluyen del repositorio público; configurar estos valores solo localmente.
+- Para envío real de pruebas, ejecutar el EXE desde su carpeta con `Report:TestModeEnabled=true`, `Report:TestSendEmail=true`, `Report:DryRun=false` y `Report:TestEmailRecipient=christianye@iadb.org`. El script `Iniciar-Prueba.ps1` fuerza `Report__DryRun=true` y no se utiliza para enviar correo real.
