@@ -10,6 +10,25 @@ namespace SwiftHourlyWorker;
 /// </summary>
 public sealed class OutlookDesktopMailSender(ILogger<OutlookDesktopMailSender> log)
 {
+    public Task SendTestAsync(SqlReport report, ReportOptions options, string recipient, CancellationToken ct)
+    {
+        const string permittedRecipient = "christianye@iadb.org";
+        if (!string.Equals(recipient?.Trim(), permittedRecipient, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Destinatario de pruebas no autorizado.");
+
+        if (!options.TestModeEnabled || !options.TestSendEmail)
+            throw new InvalidOperationException("El envio de prueba requiere modo pruebas habilitado.");
+
+        var testOptions = new ReportOptions
+        {
+            SenderUserId = options.SenderUserId,
+            Recipients = [permittedRecipient],
+            DryRun = options.DryRun,
+            MaxEmailDetailRows = options.MaxEmailDetailRows
+        };
+        return SendAsync(report, testOptions, ct);
+    }
+
     public async Task SendAsync(SqlReport report, ReportOptions options, CancellationToken ct)
     {
         if (options.DryRun)
