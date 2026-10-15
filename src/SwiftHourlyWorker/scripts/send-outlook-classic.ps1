@@ -14,6 +14,9 @@ try {
     $mail = $outlook.CreateItem(0)
     $mail.SendUsingAccount = $account
     $mail.To = [string]::Join(';', [string[]]$payload.recipients)
+    if ($payload.ccRecipients) {
+        $mail.CC = [string]::Join(';', [string[]]$payload.ccRecipients)
+    }
     $mail.Subject = [string]$payload.subject
     $mail.HTMLBody = [string]$payload.html
     $mail.Send()

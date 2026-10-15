@@ -1,0 +1,21 @@
+{
+  "Report": {
+    "Recipients": [
+      "TreasurySWIFTSupportTeam@iadb.org",
+      "JUANLOT@IADB.ORG",
+      "JOSEAH@IADB.ORG"
+    ],
+    "CcRecipients": [
+      "Amandahr@IADB.ORG",
+      "19de271c.idbg.onmicrosoft.com@amer.teams.ms",
+      "LAURACE@IADB.ORG",
+      "christianye@iadb.org"
+    ],
+    "SenderUserId": "christianye@iadb.org",
+    "RunOnStartup": false,
+    "DryRun": true,
+    "TestModeEnabled": true,
+    "TestSendEmail": false,
+    "TestEmailRecipient": "christianye@iadb.org"
+  }
+}

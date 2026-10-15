@@ -23,6 +23,7 @@ public sealed class OutlookDesktopMailSender(ILogger<OutlookDesktopMailSender> l
         {
             SenderUserId = options.SenderUserId,
             Recipients = [permittedRecipient],
+            CcRecipients = [],
             DryRun = options.DryRun,
             MaxEmailDetailRows = options.MaxEmailDetailRows
         };
@@ -53,6 +54,7 @@ public sealed class OutlookDesktopMailSender(ILogger<OutlookDesktopMailSender> l
             {
                 sender = options.SenderUserId,
                 recipients = options.Recipients,
+                ccRecipients = options.CcRecipients,
                 subject = $"SWIFT | Reporte horario | {report.Metrics.TotalRegistros} registros",
                 html = HtmlReport.Render(report, options.MaxEmailDetailRows)
             };

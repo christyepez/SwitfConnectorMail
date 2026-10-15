@@ -16,6 +16,7 @@ public sealed record SqlReport(HourWindow Window, Metrics Metrics,
 public sealed class ReportOptions
 {
     public string[] Recipients { get; set; } = [];
+    public string[] CcRecipients { get; set; } = [];
     public string SenderUserId { get; set; } = "";
     public bool RunOnStartup { get; set; }
     public bool DryRun { get; set; } = true;
