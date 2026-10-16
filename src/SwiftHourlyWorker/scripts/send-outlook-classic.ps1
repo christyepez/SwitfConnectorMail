@@ -1,26 +1,60 @@
-param([Parameter(Mandatory=$true)][string]$PayloadPath)
+
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$PayloadPath
+)
+
 $ErrorActionPreference = 'Stop'
+
 try {
-    $payload = Get-Content -LiteralPath $PayloadPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $payload = Get-Content `
+        -LiteralPath $PayloadPath `
+        -Raw -Encoding UTF8 | ConvertFrom-Json
+
     $outlook = New-Object -ComObject Outlook.Application
     $namespace = $outlook.GetNamespace('MAPI')
+
     $account = $null
+
     foreach ($entry in $namespace.Accounts) {
-        if ($entry.SmtpAddress -ieq $payload.sender) { $account = $entry; break }
+        if ($entry.SmtpAddress -ieq $payload.sender) {
+            $account = $entry
+            break
+        }
     }
+
     if ($null -eq $account) {
         throw "La cuenta '$($payload.sender)' no está configurada como cuenta de envío en Outlook clásico. No se enviará desde otra cuenta."
     }
+
     $mail = $outlook.CreateItem(0)
+
+    # Cuenta remitente
     $mail.SendUsingAccount = $account
-    $mail.To = [string]::Join(';', [string[]]$payload.recipients)
+
+    # Destinatarios principales
+    $mail.To = [string]::Join(
+        ';',
+        [string[]]$payload.recipients
+    )
+
+    # Destinatarios con copia
     if ($payload.ccRecipients) {
-        $mail.CC = [string]::Join(';', [string[]]$payload.ccRecipients)
+        $mail.CC = [string]::Join(
+            ';',
+            [string[]]$payload.ccRecipients
+        )
     }
+
+    # Contenido del reporte
     $mail.Subject = [string]$payload.subject
     $mail.HTMLBody = [string]$payload.html
+
+    # Envio mediante Outlook clasico
     $mail.Send()
+
     Write-Output 'Mensaje entregado a la bandeja de salida de Outlook Classic; no garantiza entrega final.'
+
     exit 0
 }
 catch {
